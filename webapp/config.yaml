@@ -1,0 +1,44 @@
+# Web Application Configuration
+app:
+  title: "SAR Image Colorization"
+  description: "Transform SAR images into colorized RGB images using deep learning"
+  version: "1.0.0"
+  debug: false
+
+model:
+  type: "unet"
+  in_channels: 1
+  out_channels: 3
+  features: [64, 128, 256, 512]
+  use_attention: true
+  use_deep_supervision: false
+
+inference:
+  target_size: 256
+  tile_size: 512
+  overlap: 0.25
+  normalize: true
+  normalization: "robust"
+  postprocess: true
+  denoise: true
+  enhance: true
+
+ui:
+  theme: "light"
+  sidebar_state: "expanded"
+  max_file_size: 100  # MB
+  supported_formats: ["png", "jpg", "jpeg", "tif", "tiff"]
+  
+  features:
+    batch_processing: true
+    geotiff_support: true
+    comparison_view: true
+    download_options: true
+    processing_history: true
+
+server:
+  port: 8501
+  address: "0.0.0.0"
+  max_upload_size: 300  # MB
+  enable_cors: true
+  enable_websocket: true
