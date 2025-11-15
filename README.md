@@ -633,7 +633,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Contact & Support
 
-- **Repository**: [https://github.com/sharma-0311/ColorWave-SAR Image Colorizer](https://github.com/sharma-0311/ColorWave-SAR_Image_Colorizer)
+- **Repository**: [https://github.com/sneha-0211/ColorWave-SAR Image Colorizer](https://github.com/sneha-0211/ColorWave-SAR_Image_Colorizer)
 
 ---
 
