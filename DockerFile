@@ -1,0 +1,124 @@
+# Production-Ready Dockerfile for SAR Image Colorization
+# Base image with CUDA 11.8 support
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu20.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV CUDA_VISIBLE_DEVICES=0
+ENV PYTHONPATH=/app:$PYTHONPATH
+ENV PATH=/home/appuser/.local/bin:$PATH
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-dev \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    curl \
+    libgdal-dev \
+    gdal-bin \
+    libproj-dev \
+    libgeos-dev \
+    libspatialite-dev \
+    libhdf5-dev \
+    libnetcdf-dev \
+    libopenjp2-7-dev \
+    libtiff5-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libwebp-dev \
+    libx264-dev \
+    libx265-dev \
+    libvpx-dev \
+    libavcodec-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libswscale-dev \
+    libavresample-dev \
+    libavfilter-dev \
+    libavdevice-dev \
+    libpostproc-dev \
+    libswresample-dev \
+    libfreetype6-dev \
+    libfontconfig1-dev \
+    libxrender1 \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create symbolic link for python
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
+# Upgrade pip
+RUN pip install --upgrade pip setuptools wheel
+
+# Install Python dependencies
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Install additional scientific packages
+RUN pip install --no-cache-dir \
+    opencv-python-headless \
+    rasterio \
+    geopandas \
+    fiona \
+    shapely \
+    pyproj \
+    cartopy \
+    earthpy \
+    folium \
+    plotly \
+    dash \
+    dash-bootstrap-components
+
+# Install PyTorch with CUDA support
+RUN pip install --no-cache-dir \
+    torch==1.13.1+cu118 \
+    torchvision==0.14.1+cu118 \
+    torchaudio==0.13.1+cu118 \
+    --extra-index-url https://download.pytorch.org/whl/cu118
+
+# Install additional ML packages
+RUN pip install --no-cache-dir \
+    lpips \
+    kornia \
+    albumentations \
+    timm \
+    efficientnet-pytorch \
+    pretrainedmodels \
+    segmentation-models-pytorch
+
+# Create application directory
+WORKDIR /app
+
+# Copy application code
+COPY . /app/
+
+# Create necessary directories
+RUN mkdir -p /app/data/raw /app/data/processed /app/experiments/logs /app/experiments/checkpoints /app/experiments/outputs
+
+# Set permissions
+RUN chmod -R 755 /app
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
+# Expose ports
+EXPOSE 8501 8000
+
+# Health check (Streamlit root responds with 200 when ready)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8501/ || exit 1
+
+# Default command
+CMD ["streamlit", "run", "webapp/app.py", "--server.port=8501", "--server.address=0.0.0.0"]

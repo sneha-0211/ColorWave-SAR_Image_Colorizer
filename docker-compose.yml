@@ -1,0 +1,245 @@
+version: '3.8'
+
+services:
+  # Main Streamlit Application Service
+  streamlit-app:
+    build:
+      context: .
+      dockerfile: DockerFile
+    container_name: colorwave-streamlit
+    image: colorwave:latest
+    restart: unless-stopped
+    
+    # Ports
+    ports:
+      - "${STREAMLIT_PORT:-8501}:8501"
+      - "${METRICS_PORT:-9090}:9090"
+    
+    # Environment Variables
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+      - PYTHONPATH=/app:/app/src
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      - STREAMLIT_SERVER_ENABLE_CORS=true
+      - STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=true
+      - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=${MAX_UPLOAD_SIZE:-300}
+      - MODEL_PATH=${MODEL_PATH:-/app/experiments/checkpoints}
+      - DATA_PATH=${DATA_PATH:-/app/data}
+      - OUTPUT_PATH=${OUTPUT_PATH:-/app/experiments/outputs}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - TORCH_HOME=/app/.cache/torch
+    
+    # Volumes for persistent data
+    volumes:
+      # Application code (read-only in production)
+      - ./src:/app/src:ro
+      - ./webapp:/app/webapp:ro
+      - ./Sar_Images:/app/Sar_Images:rw
+      
+      # Data directories (read-write)
+      - ./Data:/app/Data:rw
+      - colorwave_data:/app/data
+      
+      # Experiments and checkpoints (read-write)
+      - ./experiments:/app/experiments:rw
+      - colorwave_checkpoints:/app/experiments/checkpoints
+      - colorwave_outputs:/app/experiments/outputs
+      - colorwave_logs:/app/experiments/logs
+      
+      # Cache directories
+      - colorwave_cache:/app/.cache
+      - colorwave_torch_cache:/app/.cache/torch
+      
+      # Processing history
+      - colorwave_history:/app/processing_history
+    
+    # GPU Support (NVIDIA)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${GPU_COUNT:-1}
+              capabilities: [gpu]
+    
+    # Resource Limits
+    mem_limit: ${MEMORY_LIMIT:-8g}
+    mem_reservation: ${MEMORY_RESERVATION:-4g}
+    cpus: ${CPU_LIMIT:-4.0}
+    
+    # Health Check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Networks
+    networks:
+      - colorwave-network
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Dependencies
+    depends_on:
+      - redis-cache
+      - nginx-proxy
+
+  # Redis Cache Service (for caching models and results)
+  redis-cache:
+    image: redis:7-alpine
+    container_name: colorwave-redis
+    restart: unless-stopped
+    
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    
+    volumes:
+      - colorwave_redis_data:/data
+    
+    networks:
+      - colorwave-network
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # Nginx Reverse Proxy (Production)
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: colorwave-nginx
+    restart: unless-stopped
+    
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    
+    depends_on:
+      - streamlit-app
+    
+    networks:
+      - colorwave-network
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Monitoring Service (Optional - Prometheus exporter)
+  prometheus-exporter:
+    image: prom/node-exporter:latest
+    container_name: colorwave-exporter
+    restart: unless-stopped
+    
+    ports:
+      - "${EXPORTER_PORT:-9100}:9100"
+    
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    
+    networks:
+      - colorwave-network
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+# Named Volumes for Persistent Data
+volumes:
+  colorwave_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data
+  
+  colorwave_checkpoints:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/experiments/checkpoints
+  
+  colorwave_outputs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/experiments/outputs
+  
+  colorwave_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/experiments/logs
+  
+  colorwave_cache:
+    driver: local
+  
+  colorwave_torch_cache:
+    driver: local
+  
+  colorwave_history:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/processing_history
+  
+  colorwave_redis_data:
+    driver: local
+  
+  nginx_logs:
+    driver: local
+
+# Network Configuration
+networks:
+  colorwave-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+

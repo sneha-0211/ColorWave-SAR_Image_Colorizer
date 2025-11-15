@@ -1,0 +1,62 @@
+version: '3.8'
+
+# Production Docker Compose Configuration
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  streamlit-app:
+    # Production: Use read-only mounts where possible
+    volumes:
+      - ./src:/app/src:ro
+      - ./webapp:/app/webapp:ro
+    
+    # Production: Strict resource limits
+    mem_limit: 8g
+    mem_reservation: 4g
+    cpus: 4.0
+    
+    # Production: Security settings
+    environment:
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      - LOG_LEVEL=WARNING
+      - DEBUG=false
+    
+    # Production: Enable all security features
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # Set to true if all volumes are read-only (requires tmpfs for writes)
+    tmpfs:
+      - /tmp:noexec,nosuid,size=1g
+      - /app/.cache:noexec,nosuid,size=2g
+    
+    # Production: Restart policy
+    restart: always
+
+  nginx-proxy:
+    # Production: Enable HTTPS
+    ports:
+      - "80:80"
+      - "443:443"
+    
+    # Production: Security settings
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:noexec,nosuid
+      - /var/run:noexec,nosuid
+      - /tmp:noexec,nosuid
+
+  redis-cache:
+    # Production: Enable authentication
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-}
+    
+    security_opt:
+      - no-new-privileges:true
+

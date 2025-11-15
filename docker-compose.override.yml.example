@@ -1,0 +1,44 @@
+# Development Override File
+# Copy this to docker-compose.override.yml for local development
+# This file allows you to override production settings for development
+
+version: '3.8'
+
+services:
+  streamlit-app:
+    # Development: Mount code as read-write for hot reload
+    volumes:
+      - ./src:/app/src:rw
+      - ./webapp:/app/webapp:rw
+      - ./Sar_Images:/app/Sar_Images:rw
+      - ./Data:/app/Data:rw
+      - ./experiments:/app/experiments:rw
+      - ./processing_history.json:/app/processing_history.json:rw
+    
+    # Development: Expose more ports
+    ports:
+      - "8501:8501"
+      - "6006:6006"  # TensorBoard
+    
+    # Development: Less strict resource limits
+    mem_limit: 16g
+    mem_reservation: 8g
+    cpus: 8.0
+    
+    # Development: Enable debug mode
+    environment:
+      - STREAMLIT_SERVER_HEADLESS=false
+      - LOG_LEVEL=DEBUG
+      - DEBUG=true
+    
+    # Development: Remove GPU requirement (optional)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices: []
+
+  # Disable nginx in development
+  nginx-proxy:
+    profiles:
+      - production
+
