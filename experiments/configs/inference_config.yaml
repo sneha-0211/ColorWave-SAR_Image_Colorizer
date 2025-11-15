@@ -1,0 +1,35 @@
+# Inference Configuration
+experiment:
+  name: "sar_colorization_inference"
+  seed: 42
+  log_dir: "experiments/logs/inference"
+  output_dir: "experiments/outputs/inference"
+
+data:
+  root_dir: "Data/Processed/pipeline_output"
+  image_size: 256
+  num_workers: 4
+  filter_method: "lee"
+
+model:
+  type: "unet"
+  in_channels: 1
+  out_channels: 3
+  features: [64, 128, 256, 512]
+  dropout_rate: 0.1
+  use_attention: true
+  use_deep_supervision: false
+
+inference:
+  target_size: 256
+  tile_size: 512
+  overlap: 0.25
+  normalize: true
+  normalization: "robust"
+  postprocess: true
+  denoise: true
+  enhance: true
+
+evaluation:
+  batch_size: 8
+  num_samples: 10

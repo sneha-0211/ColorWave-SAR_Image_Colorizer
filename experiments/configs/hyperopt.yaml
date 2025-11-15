@@ -1,0 +1,27 @@
+experiment:
+  name: "sar_colorization_adversarial_hopt"
+
+# Path to the base adversarial training config to mutate per trial
+base_config_path: "experiments/configs/train_adv_config.yaml"
+
+# Number of trials to run
+num_trials: 12
+
+# Search space definitions
+# Supported distributions:
+#   - choice: [v1, v2, ...]
+#   - uniform: [low, high]
+#   - loguniform: [low, high]  # numeric, sampled uniformly in log space
+search_space:
+  lambda_l1:
+    choice: [50.0, 100.0]
+  lambda_ssim:
+    uniform: [0.5, 2.0]
+  lambda_perceptual:
+    loguniform: [0.02, 0.2]
+  lr_g:
+    loguniform: [1e-5, 2e-4]
+  lr_d:
+    loguniform: [1e-5, 2e-4]
+
+
